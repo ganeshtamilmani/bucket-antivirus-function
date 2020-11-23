@@ -112,16 +112,34 @@ workflows:
 
   main:
     jobs:
-      - pre_commit_deps
+      - pre_commit_deps:
+          filters:
+            tags:
+              only: /^v.*/
+
       - pre_commit_test:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - pre_commit_deps
-      - test
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
       - build:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - pre_commit_test
             - test
       - publish:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
           requires:
             - build
           context:
