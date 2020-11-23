@@ -19,9 +19,11 @@ executors:
   pre_commit_test:
     docker:
       - image: circleci/python:3.7-stretch
+  publish:
+    docker:
+      - image: 307238562370.dkr.ecr.eu-west-1.amazonaws.com/voltti/builder-aws:3d8dc11fab99458b51f342b4afef93a4272b0f69
 
 jobs:
-
   # `build` is used for building the archive
   build:
     executor: primary
@@ -37,6 +39,28 @@ jobs:
       - run:
           name: Build
           command: make archive
+      - run: |
+          docker create --name bucket-antivirus-function-builder bucket-antivirus-function:latest
+          trap "docker rm bucket-antivirus-function-builder" EXIT
+          docker cp bucket-antivirus-function-builder:/opt/app/build/lambda.zip ./build/lambda.zip
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - build/
+
+  publish:
+    executor: publish
+    environment:
+      ARTIFACT: ./build/
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: Publish to S3
+          command: |
+            export PROJECT="${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+            export VERSION="${CIRCLE_TAG:-latest-${CIRCLE_BRANCH}}"
+            persist-artifact
 
   # `pre_commit_deps` is used for cache pre-commit sources
   pre_commit_deps:
@@ -80,6 +104,9 @@ jobs:
       - run: sudo pip install -r requirements-dev.txt
       - run: nosetests
 
+orbs:
+  aws-s3: circleci/aws-s3@2.0.0
+
 workflows:
   version: 2
 
@@ -94,3 +121,8 @@ workflows:
           requires:
             - pre_commit_test
             - test
+      - publish:
+          requires:
+            - build
+          context:
+            - org-global
