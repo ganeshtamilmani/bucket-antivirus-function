@@ -21,15 +21,13 @@ RUN rm -rf /root/.cache/pip
 
 # Download libraries we need to run in lambda
 WORKDIR /tmp
-RUN yumdownloader -x \*i686 --archlist=x86_64 clamav clamav-lib clamav-update json-c pcre2
-RUN rpm2cpio clamav-0*.rpm | cpio -idmv
-RUN rpm2cpio clamav-lib*.rpm | cpio -idmv
-RUN rpm2cpio clamav-update*.rpm | cpio -idmv
-RUN rpm2cpio json-c*.rpm | cpio -idmv
-RUN rpm2cpio pcre*.rpm | cpio -idmv
+RUN yumdownloader -x \*i686 --archlist=x86_64 clamav clamav-lib clamav-update json-c pcre2 libprelude gnutls libtasn1 nettle \
+  binutils bzip2-libs libxml2 libtool-ltdl libcurl libnghttp2 libidn2 libssh2 openldap libunistring cyrus-sasl-lib nss xz-libs
+RUN for rpm in *.rpm; do rpm2cpio "$rpm" | cpio -idmv; done
 
 # Copy over the binaries and libraries
-RUN cp /tmp/usr/bin/clamscan /tmp/usr/bin/freshclam /tmp/usr/lib64/* /opt/app/bin/
+RUN cp -R /tmp/usr/bin/clamscan /tmp/usr/bin/freshclam /tmp/usr/lib64/* /opt/app/bin/
+RUN cp /tmp/usr/bin/ld.bfd /opt/app/bin/ld
 
 # Fix the freshclam.conf settings
 RUN echo "DatabaseMirror database.clamav.net" > /opt/app/bin/freshclam.conf
