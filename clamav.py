@@ -45,7 +45,9 @@ def current_library_search_path():
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = "%s:%s" % (env["LD_LIBRARY_PATH"], CLAMAVLIB_PATH)
 
-    ld_verbose = subprocess.check_output(["bin/ld", "--verbose"], env=env).decode("utf-8")
+    ld_verbose = subprocess.check_output(["bin/ld", "--verbose"], env=env).decode(
+        "utf-8"
+    )
     rd_ld = re.compile(RE_SEARCH_DIR)
     return rd_ld.findall(ld_verbose)
 
