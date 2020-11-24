@@ -111,7 +111,8 @@ def update_defs_from_freshclam(path, library_path=""):
     create_dir(path)
     fc_env = os.environ.copy()
     if library_path:
-        fc_env["LD_LIBRARY_PATH"] = "%s:%s" % (
+        fc_env["LD_LIBRARY_PATH"] = "%s:%s:%s" % (
+            fc_env["LD_LIBRARY_PATH"],
             ":".join(current_library_search_path()),
             CLAMAVLIB_PATH,
         )
