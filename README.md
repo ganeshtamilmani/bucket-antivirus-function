@@ -393,6 +393,24 @@ direnv allow
 make archive update
 ```
 
+## CI
+
+Circle CI runs tests and build on every commit.
+
+### Publishing
+
+Git tags can be used to publish build to S3 bucket.
+
+Example:
+
+```bash
+git checkout $target_commit # go to target commit for publishing
+git tag v2.0.0-test-1.0
+git pust --tags
+```
+
+Will publish the target commit with `v2.0.0-test-1.0` version.
+
 ## License
 
 ```text
