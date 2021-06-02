@@ -21,7 +21,7 @@ RUN rm -rf /root/.cache/pip
 
 # Download libraries we need to run in lambda
 WORKDIR /tmp
-RUN yumdownloader -x \*i686 --archlist=x86_64 clamav clamav-lib clamav-update json-c pcre2 libprelude gnutls libtasn1 nettle \
+RUN yumdownloader -x \*i686 --archlist=x86_64 clamav clamav-lib clamav-update json-c pcre2 libprelude gnutls libtasn1 lib64nettle nettle \
   binutils bzip2-libs libxml2 libtool-ltdl libcurl libnghttp2 libidn2 libssh2 openldap libunistring cyrus-sasl-lib nss xz-libs
 RUN for rpm in *.rpm; do rpm2cpio "$rpm" | cpio -idmv; done
 
