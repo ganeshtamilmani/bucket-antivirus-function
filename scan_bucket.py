@@ -86,7 +86,9 @@ def format_s3_event(s3_bucket_name, key_name):
     return s3_event
 
 
-def main(lambda_function_name, s3_bucket_name, limit):
+def main(lambda_function_name, s3_bucket_name, limit, profile):
+    if profile:
+        boto3.setup_default_session(profile_name=profile)
     # Verify the lambda exists
     lambda_client = boto3.client("lambda", endpoint_url=LAMBDA_ENDPOINT)
     try:
@@ -122,6 +124,10 @@ if __name__ == "__main__":
         "--s3-bucket-name", required=True, help="The name of the S3 bucket to scan"
     )
     parser.add_argument("--limit", type=int, help="The number of records to limit to")
+    parser.add_argument(
+        "--profile", required=False, help="AWS profile to use"
+    )
+
     args = parser.parse_args()
 
-    main(args.lambda_function_name, args.s3_bucket_name, args.limit)
+    main(args.lambda_function_name, args.s3_bucket_name, args.limit, args.profile)
