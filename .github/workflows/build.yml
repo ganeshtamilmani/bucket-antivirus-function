@@ -1,0 +1,66 @@
+name: Build
+on: [push]
+
+env:
+  ECR_REGISTRY: 307238562370.dkr.ecr.eu-west-1.amazonaws.com
+  AWS_REGION: eu-west-1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: sudo pip install -r requirements.txt
+      - run: sudo pip install -r requirements-dev.txt
+      - run: nosetests
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: make archive
+      - run: |
+          docker create --name bucket-antivirus-function-builder bucket-antivirus-function:latest
+          trap "docker rm bucket-antivirus-function-builder" EXIT
+          docker cp bucket-antivirus-function-builder:/opt/app/build/lambda.zip ./build/lambda.zip
+
+      - name: Upload build
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: |
+            build/
+          retention-days: 3
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@v3
+        with:
+          name: build
+          path: build/
+
+      - name: Configure AWS
+        shell: bash
+        run: |
+          mkdir -p ~/.aws
+          echo '${{ secrets.AWS_CONFIG_TERRAFORM }}' > ~/.aws/config
+          cat << EOF > ~/.aws/credentials
+          [voltti-federation]
+          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EOF
+
+      - run: |
+          export PROJECT="espoon-voltti/bucket-antivirus-function"
+          export TAG="${GITHUB_REF##*/}"
+          export VERSION="${TAG:-"${{ github.sha }}"}"
+          export AWS_REGION="${AWS_REGION:-eu-west-1}"
+          ls build -lah
+          aws --profile voltti-sst s3 cp "build" "s3://voltti-ci-builds/${PROJECT}/${VERSION}" --recursive
+
