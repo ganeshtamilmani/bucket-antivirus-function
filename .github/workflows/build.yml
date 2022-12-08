@@ -38,6 +38,7 @@ jobs:
           retention-days: 3
 
   publish:
+    if: github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-latest
 
