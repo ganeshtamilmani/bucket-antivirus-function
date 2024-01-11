@@ -2,69 +2,72 @@ name: Build
 on: [push]
 
 env:
-  ECR_REGISTRY: 307238562370.dkr.ecr.eu-west-1.amazonaws.com
-  AWS_REGION: eu-west-1
+  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.8'
-      - run: pip install -r requirements.txt
-      - run: pip install -r requirements-dev.txt
-      - run: python3.8 $(which nosetests)
-
-  build:
-    needs: test
+  build-and-push-image:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
-      - run: make archive
-      - run: |
-          docker create --name bucket-antivirus-function-builder bucket-antivirus-function:latest
-          trap "docker rm bucket-antivirus-function-builder" EXIT
-          docker cp bucket-antivirus-function-builder:/opt/app/build/lambda.zip ./build/lambda.zip
-
-      - name: Upload build
-        uses: actions/upload-artifact@v3
-        with:
-          name: build
-          path: |
-            build/
-          retention-days: 3
-
-  publish:
-    if: github.ref_type == 'tag'
-    needs: build
-    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
     steps:
-      - name: Download build
-        uses: actions/download-artifact@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: docker/login-action@v2
         with:
-          name: build
-          path: build/
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure AWS
-        shell: bash
-        run: |
-          mkdir -p ~/.aws
-          echo '${{ secrets.AWS_CONFIG_TERRAFORM }}' > ~/.aws/config
-          cat << EOF > ~/.aws/credentials
-          [voltti-federation]
-          aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          EOF
+      - name: Configure AWS credentials
+        if: ${{ vars.ECR == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - run: |
-          export PROJECT="espoon-voltti/bucket-antivirus-function"
-          export TAG="${GITHUB_REF##*/}"
-          export VERSION="${TAG:-"${{ github.sha }}"}"
-          export AWS_REGION="${AWS_REGION:-eu-west-1}"
-          ls build -lah
-          aws --profile voltti-sst s3 cp "build" "s3://voltti-ci-builds/${PROJECT}/${VERSION}" --recursive
+      - name: Log in to AWS ECR
+        if: ${{ vars.ECR == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        env:
+          ECR_IMAGE_NAME: "${{ vars.ECR_IMAGE_NAME || env.IMAGE_NAME }}"
+        with:
+          images: |
+            ghcr.io/${{ env.IMAGE_NAME }}
+            ${{ steps.login-ecr.outputs.registry && format('{0}/{1}', steps.login-ecr.outputs.registry, env.ECR_IMAGE_NAME) || '' }}
+
+      - name: Build and run tests
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          tags: ${{ github.repository }}-tests:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          target: tests
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
 

@@ -15,7 +15,6 @@
 
 import datetime
 import os
-import re
 import textwrap
 import unittest
 
@@ -24,7 +23,6 @@ import botocore.session
 from botocore.stub import Stubber
 import mock
 
-from clamav import RE_SEARCH_DIR
 from clamav import scan_output_to_json
 from clamav import md5_from_s3_tags
 from clamav import time_from_s3
@@ -47,23 +45,6 @@ class TestClamAV(unittest.TestCase):
         self.sns_client = botocore.session.get_session().create_client(
             "sns", region_name="us-west-2"
         )
-
-    def test_current_library_search_path(self):
-        # Calling `ld --verbose` returns a lot of text but the line to check is this one:
-        search_path = """SEARCH_DIR("=/usr/x86_64-redhat-linux/lib64"); SEARCH_DIR("=/usr/lib64"); SEARCH_DIR("=/usr/local/lib64"); SEARCH_DIR("=/lib64"); SEARCH_DIR("=/usr/x86_64-redhat-linux/lib"); SEARCH_DIR("=/usr/local/lib"); SEARCH_DIR("=/lib"); SEARCH_DIR("=/usr/lib");"""  # noqa
-        rd_ld = re.compile(RE_SEARCH_DIR)
-        all_search_paths = rd_ld.findall(search_path)
-        expected_search_paths = [
-            "/usr/x86_64-redhat-linux/lib64",
-            "/usr/lib64",
-            "/usr/local/lib64",
-            "/lib64",
-            "/usr/x86_64-redhat-linux/lib",
-            "/usr/local/lib",
-            "/lib",
-            "/usr/lib",
-        ]
-        self.assertEqual(all_search_paths, expected_search_paths)
 
     def test_scan_output_to_json_clean(self):
         file_path = "/tmp/test.txt"
@@ -132,7 +113,7 @@ class TestClamAV(unittest.TestCase):
             md5_hash = md5_from_s3_tags(
                 self.s3_client, self.s3_bucket_name, self.s3_key_name
             )
-            self.assertEquals("", md5_hash)
+            self.assertEqual("", md5_hash)
 
     def test_md5_from_s3_tags_has_md5(self):
         expected_md5_hash = "d41d8cd98f00b204e9800998ecf8427e"
@@ -153,7 +134,7 @@ class TestClamAV(unittest.TestCase):
             md5_hash = md5_from_s3_tags(
                 self.s3_client, self.s3_bucket_name, self.s3_key_name
             )
-            self.assertEquals(expected_md5_hash, md5_hash)
+            self.assertEqual(expected_md5_hash, md5_hash)
 
     def test_time_from_s3(self):
 
@@ -172,7 +153,7 @@ class TestClamAV(unittest.TestCase):
             s3_time = time_from_s3(
                 self.s3_client, self.s3_bucket_name, self.s3_key_name
             )
-            self.assertEquals(expected_s3_time, s3_time)
+            self.assertEqual(expected_s3_time, s3_time)
 
     @mock.patch("clamav.md5_from_file")
     @mock.patch("common.os.path.exists")
@@ -234,7 +215,7 @@ class TestClamAV(unittest.TestCase):
             to_download = update_defs_from_s3(
                 self.s3_client, self.s3_bucket_name, AV_DEFINITION_S3_PREFIX
             )
-            self.assertEquals(expected_to_download, to_download)
+            self.assertEqual(expected_to_download, to_download)
 
     @mock.patch("clamav.md5_from_file")
     @mock.patch("common.os.path.exists")
@@ -283,7 +264,7 @@ class TestClamAV(unittest.TestCase):
             to_download = update_defs_from_s3(
                 self.s3_client, self.s3_bucket_name, AV_DEFINITION_S3_PREFIX
             )
-            self.assertEquals(expected_to_download, to_download)
+            self.assertEqual(expected_to_download, to_download)
 
     @mock.patch("clamav.md5_from_file")
     @mock.patch("common.os.path.exists")
@@ -349,4 +330,4 @@ class TestClamAV(unittest.TestCase):
             to_download = update_defs_from_s3(
                 self.s3_client, self.s3_bucket_name, AV_DEFINITION_S3_PREFIX
             )
-            self.assertEquals(expected_to_download, to_download)
+            self.assertEqual(expected_to_download, to_download)
