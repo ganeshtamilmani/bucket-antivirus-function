@@ -1,43 +1,35 @@
-FROM amazonlinux:2
+FROM public.ecr.aws/lambda/python:3.12 AS base
 
-# Set up working directories
-RUN mkdir -p /opt/app
-RUN mkdir -p /opt/app/build
-RUN mkdir -p /opt/app/bin/
+RUN dnf -y update \
+ && dnf -y install \
+  python3-pip clamav \
+  clamav-lib \
+  clamav-scanner-systemd \
+  clamav-update \
+ && dnf clean all \
+ && echo "DatabaseMirror database.clamav.net" > /etc/freshclam.conf \
+ && echo "CompressLocalDatabase yes" >> /etc/freshclam.conf \
+ && chmod a+r /etc/freshclam.conf
 
-# Copy in the lambda source
-WORKDIR /opt/app
-COPY ./*.py /opt/app/
-COPY requirements.txt /opt/app/requirements.txt
+COPY requirements.txt requirements.txt
 
-# Install packages
-RUN yum update -y
-RUN yum install -y cpio python3-pip yum-utils zip unzip less
-RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+RUN pip install -r requirements.txt \
+ && rm -rf /root/.cache/pip
 
-# This had --no-cache-dir, tracing through multiple tickets led to a problem in wheel
-RUN pip3 install -r requirements.txt
-RUN rm -rf /root/.cache/pip
+COPY *.py .
 
-# Download libraries we need to run in lambda
-WORKDIR /tmp
-RUN yumdownloader -x \*i686 --archlist=x86_64 clamav clamav-lib clamav-update json-c pcre2 libprelude gnutls libtasn1 lib64nettle nettle \
-  binutils bzip2-libs libxml2 libtool-ltdl libcurl libnghttp2 libidn2 libssh2 openldap libunistring cyrus-sasl-lib nss xz-libs
-RUN for rpm in *.rpm; do rpm2cpio "$rpm" | cpio -idmv; done
+FROM base AS tests
 
-# Copy over the binaries and libraries
-RUN cp -R /tmp/usr/bin/clamscan /tmp/usr/bin/freshclam /tmp/usr/lib64/* /opt/app/bin/
-RUN cp /tmp/usr/bin/ld.bfd /opt/app/bin/ld
+RUN [[ $(python --version) == "Python 3.12."* ]]
 
-# Fix the freshclam.conf settings
-RUN echo "DatabaseMirror database.clamav.net" > /opt/app/bin/freshclam.conf
-RUN echo "CompressLocalDatabase yes" >> /opt/app/bin/freshclam.conf
+COPY . .
 
-# Create the zip file
-WORKDIR /opt/app
-RUN zip -r9 --exclude="*test*" /opt/app/build/lambda.zip *.py bin
+RUN pip install -r requirements-dev.txt \
+ && rm -rf /root/.cache/pip
+RUN nosetests
+RUN flake8
 
-WORKDIR /usr/local/lib/python3.7/site-packages
-RUN zip -r9 /opt/app/build/lambda.zip *
+FROM base as lambda
 
-WORKDIR /opt/app
+CMD [ "update.lambda_handler" ]
+

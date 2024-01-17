@@ -1,9 +1,10 @@
-certifi==2023.7.22
+certifi==2023.11.17
 chardet==3.0.4
-datadog==0.44.0
-decorator==4.3
-idna==2.8
+datadog==0.47.0
+decorator==5.1.1
+idna==3.6
 requests==2.31.0
-simplejson==3.16
+simplejson==3.19.2
 urllib3==1.26.18
-pytz==2019.3
+pytz==2023.3
+setuptools==69.0.3

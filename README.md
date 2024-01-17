@@ -1,12 +1,9 @@
 # bucket-antivirus-function
 
-[![CircleCI](https://circleci.com/gh/upsidetravel/bucket-antivirus-function.svg?style=svg)](https://circleci.com/gh/upsidetravel/bucket-antivirus-function)
-
 Scan new objects added to any s3 bucket using AWS Lambda. [more details in this post](https://engineering.upside.com/s3-antivirus-scanning-with-lambda-and-clamav-7d33f9c5092e)
 
 ## Features
 
-- Easy to install
 - Send events from an unlimited number of S3 buckets
 - Prevent reading of infected files using S3 bucket policies
 - Accesses the end-user’s separate installation of
@@ -32,12 +29,9 @@ or INFECTED, along with the date and time of the scan.
 
 ## Installation
 
-### Build from Source
+### Build
 
-To build the archive to upload to AWS Lambda, run `make all`.  The build process is completed using
-the [amazonlinux](https://hub.docker.com/_/amazonlinux/) [Docker](https://www.docker.com)
- image.  The resulting archive will be built at `build/lambda.zip`.  This file will be
- uploaded to AWS for both Lambda functions below.
+Build container with `docker build -t bucket-antivirus-function:latest` and upload container to ECR.
 
 ### AV Definition Bucket
 
@@ -72,13 +66,12 @@ This function accesses the user’s ClamAV instance to download
 updated definitions using `freshclam`.  It is recommended to run
 this every 3 hours to stay protected from the latest threats.
 
-1. Create the archive using the method in the
- [Build from Source](#build-from-source) section.
+1. Create and push the image using the method in the [Build](#build) section.
 2. From the AWS Lambda Dashboard, click **Create function**
 3. Choose **Author from scratch** on the *Create function* page
 4. Name your function `bucket-antivirus-update` when prompted on the
 *Configure function* step.
-5. Set *Runtime* to `Python 3.7`
+5. Use container image from ECR.
 6. Create a new role name `bucket-antivirus-update` that uses the
 following policy document
 
@@ -126,25 +119,20 @@ following policy document
 7. Click next to go to the Configuration page
 8. Add a trigger from the left of **CloudWatch Event** using `rate(3 hours)`
 for the **Schedule expression**.  Be sure to check **Enable trigger**
-9. Choose **Upload a ZIP file** for *Code entry type* and select the archive
-downloaded in step 1.
-10. Add a single environment variable named `AV_DEFINITION_S3_BUCKET`
+9. Add a single environment variable named `AV_DEFINITION_S3_BUCKET`
 and set its value to the name of the bucket created to store your AV
 definitions.
-11. Set *Lambda handler* to `update.lambda_handler`
-12. Under *Basic Settings*, set *Timeout* to **5 minutes** and *Memory* to
-**1024**
-13. Save and test your function.  If prompted for test data, just use
+10. Under *Basic Settings*, set *Timeout* to **5 minutes**, *Memory* to **2048** and *Storage* to **2048**.
+11. Save and test your function.  If prompted for test data, just use
 the default provided.
 
 ### AV Scanner Lambda
 
-1. Create the archive using the method in the
- [Build from Source](#build-from-source) section.
+1. Create the image using the method in the [Build](#build) section.
 2. From the AWS Lambda Dashboard, click **Create function**
 3. Choose **Author from scratch** on the *Create function* page
 4. Name your function `bucket-antivirus-function`
-5. Set *Runtime* to `Python 3.7`
+5. Use container image from ECR and set *command* to **scan.lambda_handler**
 6. Create a new role name `bucket-antivirus-function` that uses the
 following policy document
 
@@ -225,15 +213,12 @@ following policy document
 
 7. Click *next* to head to the Configuration page
 8. Add a new trigger of type **S3 Event** using `ObjectCreate(all)`.
-9. Choose **Upload a ZIP file** for *Code entry type* and select the archive
-created in step 1.
-10. Set *Lambda handler* to `scan.lambda_handler`
-11. Add a single environment variable named `AV_DEFINITION_S3_BUCKET`
+9. Add a single environment variable named `AV_DEFINITION_S3_BUCKET`
 and set its value to the name of the bucket created to store your AV
 definitions. If your bucket is `s3://my-bucket`, the value should be `my-bucket`.
-12. Under *Basic settings*, set *Timeout* to **5 minutes** and *Memory* to
-**1024**
-13. Save the function.  Testing is easiest performed by uploading a
+10. Under *Basic settings*, set *Timeout* to **5 minutes** and *Memory* to
+**2048** and *Storage* to **2048**
+11. Save the function.  Testing is easiest performed by uploading a
 file to the bucket configured as the trigger in step 4.
 
 ### S3 Events
@@ -269,7 +254,7 @@ the table below for reference.
 | AV_STATUS_SNS_PUBLISH_CLEAN | Publish AV_STATUS_CLEAN results to AV_STATUS_SNS_ARN | True | No |
 | AV_STATUS_SNS_PUBLISH_INFECTED | Publish AV_STATUS_INFECTED results to AV_STATUS_SNS_ARN | True | No |
 | AV_TIMESTAMP_METADATA | The tag/metadata name representing file's scan time | av-timestamp | No |
-| CLAMAVLIB_PATH | Path to ClamAV library files | ./bin | No |
+| FRESHCLAM_CONFIG_PATH | Path to freshclam configuration | /etc/freshclam.conf | No |
 | CLAMSCAN_PATH | Path to ClamAV clamscan binary | ./bin/clamscan | No |
 | FRESHCLAM_PATH | Path to ClamAV freshclam binary | ./bin/freshclam | No |
 | DATADOG_API_KEY | API Key for pushing metrics to DataDog (optional) | | No |
@@ -349,9 +334,6 @@ the script uses the same environment variables you'd use in your lambda so you c
 
 ## Testing
 
-There are two types of tests in this repository. The first is pre-commit tests and the second are python tests. All of
-these tests are run by CircleCI.
-
 ### pre-commit Tests
 
 The pre-commit tests ensure that code submitted to this repository meet the standards of the repository. To get started
@@ -368,37 +350,37 @@ to install the developer resources and then run the tests:
 ```sh
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-make test
+nosetests
+```
+
+Or execute tests inside container
+
+```sh
+docker build . -t bucket-antivirus-function-tests:latest --target tests
 ```
 
 ### Local lambdas
 
-You can run the lambdas locally to test out what they are doing without deploying to AWS. This is accomplished
-by using docker containers that act similarly to lambda. You will need to have set up some local variables in your
-`.envrc.local` file and modify them appropriately first before running `direnv allow`. If you do not have `direnv`
-it can be installed with `brew install direnv`.
-
-For the Scan lambda you will need a test file uploaded to S3 and the variables `TEST_BUCKET` and `TEST_KEY`
-set in your `.envrc.local` file. Then you can run:
+Run lambda test stack locally using `docker-compose`:
 
 ```sh
-direnv allow
-make archive scan
+docker compose down -v
+docker commpose build
+docker compose up
 ```
 
-If you want a file that will be recognized as a virus you can download a test file from the [EICAR](https://www.eicar.org/?page_id=3950)
-website and uploaded to your bucket.
-
-For the Update lambda you can run:
+Invoke lambdas in another terminal:
 
 ```sh
-direnv allow
-make archive update
+./stack/invoke-update-lambda.sh
+./stack/invoke-scan-lambda.sh
 ```
 
 ## CI
 
-Circle CI runs tests and build on every commit.
+Github CI runs tests and build on every commit.
+
+To push image to ECR: setup `ECR`, `ECR_IMAGE_NAME` variables and `AWS_ROLE` and `AWS_REGION` secrets in Github Action configuration.
 
 ### Publishing
 
@@ -409,7 +391,7 @@ Example:
 ```bash
 git checkout $target_commit # go to target commit for publishing
 git tag v2.0.0-test-1.0
-git pust --tags
+git push origin v2.0.0-test-1.0
 ```
 
 Will publish the target commit with `v2.0.0-test-1.0` version.
