@@ -29,7 +29,7 @@ RUN pip install -r requirements-dev.txt \
 RUN nosetests
 RUN flake8
 
-FROM base as lambda
+FROM base AS lambda
 
 CMD [ "update.lambda_handler" ]
 
