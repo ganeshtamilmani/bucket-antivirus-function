@@ -215,8 +215,8 @@ def lambda_handler(event, context):
     start_time = get_timestamp()
     print("Script starting at %s\n" % (start_time))
     s3_object = event_object(event, event_source=EVENT_SOURCE)
-    print("Object: %s %s" % (getattr(obj, 'bucket_name',
-          'INVALID'), getattr(obj, 'key', 'INVALID')))
+    print("Object: %s %s" % (getattr(s3_object, 'bucket_name',
+          'INVALID'), getattr(s3_object, 'key', 'INVALID')))
 
     if str_to_bool(AV_PROCESS_ORIGINAL_VERSION_ONLY):
         verify_s3_object_version(s3, s3_object)
