@@ -72,7 +72,8 @@ def event_object(event, event_source="s3"):
 
     # Ensure both bucket and key exist
     if (not bucket_name) or (not key_name):
-        raise Exception("Unable to retrieve object from event.\n{}".format(event))
+        raise Exception(
+            "Unable to retrieve object from event.\n{}".format(event))
 
     # Create and return the object
     s3 = boto3.resource("s3", endpoint_url=S3_ENDPOINT)
@@ -113,7 +114,8 @@ def delete_s3_object(s3_object):
             % (s3_object.bucket_name, s3_object.key)
         )
     else:
-        print("Infected file deleted: %s.%s" % (s3_object.bucket_name, s3_object.key))
+        print("Infected file deleted: %s.%s" %
+              (s3_object.bucket_name, s3_object.key))
 
 
 def set_av_metadata(s3_object, scan_result, scan_signature, timestamp):
@@ -148,7 +150,8 @@ def set_av_tags(s3_client, s3_object, scan_result, scan_signature, timestamp):
     new_tags.append({"Key": AV_STATUS_METADATA, "Value": scan_result})
     new_tags.append({"Key": AV_TIMESTAMP_METADATA, "Value": timestamp})
     s3_client.put_object_tagging(
-        Bucket=s3_object.bucket_name, Key=s3_object.key, Tagging={"TagSet": new_tags}
+        Bucket=s3_object.bucket_name, Key=s3_object.key, Tagging={
+            "TagSet": new_tags}
     )
 
 
@@ -212,6 +215,8 @@ def lambda_handler(event, context):
     start_time = get_timestamp()
     print("Script starting at %s\n" % (start_time))
     s3_object = event_object(event, event_source=EVENT_SOURCE)
+    print("Object: %s %s" % (getattr(obj, 'bucket_name',
+          'INVALID'), getattr(obj, 'key', 'INVALID')))
 
     if str_to_bool(AV_PROCESS_ORIGINAL_VERSION_ONLY):
         verify_s3_object_version(s3, s3_object)
@@ -219,7 +224,8 @@ def lambda_handler(event, context):
     # Publish the start time of the scan
     if AV_SCAN_START_SNS_ARN not in [None, ""]:
         start_scan_time = get_timestamp()
-        sns_start_scan(sns_client, s3_object, AV_SCAN_START_SNS_ARN, start_scan_time)
+        sns_start_scan(sns_client, s3_object,
+                       AV_SCAN_START_SNS_ARN, start_scan_time)
 
     file_path = get_local_path(s3_object, "/tmp")
     create_dir(os.path.dirname(file_path))
@@ -232,7 +238,8 @@ def lambda_handler(event, context):
     for download in to_download.values():
         s3_path = download["s3_path"]
         local_path = download["local_path"]
-        print("Downloading definition file %s from s3://%s" % (local_path, s3_path))
+        print("Downloading definition file %s from s3://%s" %
+              (local_path, s3_path))
         s3.Bucket(AV_DEFINITION_S3_BUCKET).download_file(s3_path, local_path)
         print("Downloading definition file %s complete!" % (local_path))
     scan_result, scan_signature = clamav.scan_file(file_path)
