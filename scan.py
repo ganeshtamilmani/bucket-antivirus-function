@@ -20,6 +20,7 @@ from urllib.parse import unquote_plus
 from distutils.util import strtobool
 
 import boto3
+import botocore
 
 import clamav
 import metrics
@@ -135,9 +136,16 @@ def set_av_metadata(s3_object, scan_result, scan_signature, timestamp):
 
 
 def set_av_tags(s3_client, s3_object, scan_result, scan_signature, timestamp):
-    curr_tags = s3_client.get_object_tagging(
-        Bucket=s3_object.bucket_name, Key=s3_object.key
-    )["TagSet"]
+    try:
+        curr_tags = s3_client.get_object_tagging(
+            Bucket=s3_object.bucket_name, Key=s3_object.key
+        )["TagSet"]
+    except botocore.exceptions.ClientError as err:
+        if err.response["Error"]["Code"] == "MethodNotAllowed":
+            print("File already deleted: unable to tag")
+            return
+        raise err
+
     new_tags = copy.copy(curr_tags)
     for tag in curr_tags:
         if tag["Key"] in [
@@ -229,7 +237,16 @@ def lambda_handler(event, context):
 
     file_path = get_local_path(s3_object, "/tmp")
     create_dir(os.path.dirname(file_path))
-    s3_object.download_file(file_path)
+    try:
+        s3_object.download_file(file_path)
+    except s3_client.exceptions.NoSuchKey:
+        print("File already deleted")
+        return
+    except botocore.exceptions.ClientError as err:
+        if err.response["Error"]["Code"] == "404":
+            print("File already deleted")
+            return
+        raise err
 
     to_download = clamav.update_defs_from_s3(
         s3_client, AV_DEFINITION_S3_BUCKET, AV_DEFINITION_S3_PREFIX
