@@ -81,12 +81,14 @@ def upload_defs_to_s3(s3_client, bucket, prefix, local_path):
                         % (local_file_path, os.path.join(bucket, prefix, filename))
                     )
                     s3 = boto3.resource("s3", endpoint_url=S3_ENDPOINT)
-                    s3_object = s3.Object(bucket, os.path.join(prefix, filename))
+                    s3_object = s3.Object(
+                        bucket, os.path.join(prefix, filename))
                     s3_object.upload_file(os.path.join(local_path, filename))
                     s3_client.put_object_tagging(
                         Bucket=s3_object.bucket_name,
                         Key=s3_object.key,
-                        Tagging={"TagSet": [{"Key": "md5", "Value": local_file_md5}]},
+                        Tagging={"TagSet": [
+                            {"Key": "md5", "Value": local_file_md5}]},
                     )
                 else:
                     print(
@@ -115,7 +117,8 @@ def update_defs_from_freshclam(path):
     output = fc_proc.communicate()[0]
     print("freshclam output:\n%s" % output)
     if fc_proc.returncode != 0:
-        raise Exception("Unexpected exit code from freshclam: %s." % fc_proc.returncode)
+        raise Exception("Unexpected exit code from freshclam: %s." %
+                        fc_proc.returncode)
     return fc_proc.returncode
 
 
@@ -178,7 +181,7 @@ def scan_file(path):
         stdout=subprocess.PIPE,
         env=av_env,
     )
-    output = av_proc.communicate()[0].decode()
+    output = av_proc.communicate()[0].decode(errors='replace')
     print("clamscan output:\n%s" % output)
 
     # Turn the output into a data source we can read
